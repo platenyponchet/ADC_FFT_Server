@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Yagua Example</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body>
+
+    <script type="text/javascript" src="chart.js"></script>
+    <script type="text/javascript" src="jquery.js"></script>
+
+    <h1>Yagua Example</h1>
+    <div>
+        <canvas id="myChart"></canvas>
+    </div>
+</body>
+<script>
+    var myChart = null;
+    function plot() {
+        $.get("/array", function (incoming_data) {
+            let response = incoming_data;
+            console.log(incoming_data);
+
+            const labels = [...Array(response.length).keys()];
+
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: 'ADC Samples (I2S)',
+                    backgroundColor: 'rgb(255, 99, 132)',
+                    borderColor: 'rgb(255, 99, 132)',
+                    data: response,
+                }]
+            };
+
+            const config = {
+                type: 'line',
+                data: data,
+                options: {
+                    scales: {
+                        y: {
+                            max: 4095,
+                            min: 0,
+                            ticks: {
+                                stepSize: 0.5
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 0
+                    }
+                }
+            };
+            
+            if (myChart == null) {
+                myChart = new Chart(
+                    document.getElementById('myChart'),
+                    config
+                );
+            }
+            else {
+                myChart.config.data = data;
+                myChart.update();
+            }
+
+            setTimeout(plot, 1000);
+        });
+    }
+
+    plot();
+</script>
+
+</html>
