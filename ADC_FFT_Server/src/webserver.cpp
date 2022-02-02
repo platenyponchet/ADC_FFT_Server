@@ -1,24 +1,29 @@
+#include <math.h>
 #include "webserver.h"
 #include "ESPAsyncWebServer.h"
 #include "SPIFFS.h"
 
+#define FFT_SAMPLES     64
+#define PWM_FREQ        429
+#define PWM_RESOLUTION  8
+#define PWM_DUTY_CICLE  50
+
 // Set LED GPIO
-const int ledPin = LED_BUILTIN;
+const int pwmPin = LED_BUILTIN;
 // Stores LED state
 String ledState;
 
 AsyncWebServer server(80);
 
-uint16_t* i2sSamples;
+double* fftResult_;
 uint16_t bufferIndex = 0;
 const char *contentType = "application/json";
-
 
 // Replaces placeholder with LED state value
 String processor(const String& var){
     Serial.println(var);
     if(var == "STATE") {
-        if(digitalRead(ledPin)) {
+        if(digitalRead(pwmPin)) {
             ledState = "ON";
         }
         else {
@@ -30,10 +35,13 @@ String processor(const String& var){
     return String();
 }
 
-void webserverSetup(uint16_t* buffer) {
-    i2sSamples = buffer;
+void webserverSetup(double* buffer) {
+    fftResult_ = buffer;
 
-    pinMode(ledPin, OUTPUT);
+    pinMode(pwmPin, OUTPUT);
+    ledcAttachPin(pwmPin, 0);
+    ledcSetup(0, PWM_FREQ, PWM_RESOLUTION);
+    ledcWrite(0, (uint32_t)(pow(2,PWM_RESOLUTION)*PWM_DUTY_CICLE/100.0));
 
     if(!SPIFFS.begin(true)){
         Serial.println("An Error has occurred while mounting SPIFFS");
@@ -49,18 +57,6 @@ void webserverSetup(uint16_t* buffer) {
         request->send(SPIFFS, "/index.html", String(),false, processor);
     });
 
-    // Route to set GPIO to HIGH
-    server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request) {
-        digitalWrite(ledPin, HIGH);    
-        request->send(SPIFFS, "/index.html", String(),false, processor);
-    });
-
-    // Route to set GPIO to LOW
-    server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request) {
-        digitalWrite(ledPin, LOW);
-        request->send(SPIFFS, "/index.html", String(),false, processor);
-    });
-
     server.on("/array", HTTP_GET, [](AsyncWebServerRequest * request)
     {
         bufferIndex = 0;
@@ -72,15 +68,15 @@ void webserverSetup(uint16_t* buffer) {
 
             if (bufferIndex == 0)
             {
-                len += sprintf((char *)buffer, "[%4d", i2sSamples[bufferIndex]&0x0FFF);
+                len += sprintf((char *)buffer, "[%.2f", fftResult_[bufferIndex]);
                 bufferIndex++;
             }
-            while (len < (maxLen - 10) && bufferIndex < 512)
+            while (len < (maxLen - 10) && bufferIndex < FFT_SAMPLES)
             {
-                len += sprintf((char *)(buffer + len), ",%4d", i2sSamples[bufferIndex]&0x0FFF);
+                len += sprintf((char *)(buffer + len), ",%.2f", fftResult_[bufferIndex]);
                 bufferIndex++;
             }
-            if (bufferIndex == 512) {
+            if (bufferIndex == FFT_SAMPLES) {
                 len += sprintf((char *)(buffer + len), "]");
                 bufferIndex++;
             }

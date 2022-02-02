@@ -2,6 +2,15 @@
 #include <WiFi.h>
 #include "driver/i2s.h"
 #include "webserver.h"
+#include "arduinoFFT.h"
+
+#define I2S_SAMPLE_RATE 44000
+#define ADC_INPUT       ADC1_CHANNEL_4 //pin 32
+#define OUTPUT_PIN      27
+#define OUTPUT_VALUE    3800
+#define READ_DELAY      9000 //microseconds
+#define SAMPLES         512
+
 
 const char *ssid = "Yagua-Config";
 const char *passphrase = "yagua123";
@@ -10,13 +19,13 @@ IPAddress local_IP(10,200,200,1);
 IPAddress gateway(10,200,200,1);
 IPAddress subnet(255,255,255,0);
 
-#define I2S_SAMPLE_RATE 44000
-#define ADC_INPUT ADC1_CHANNEL_4 //pin 32
-#define OUTPUT_PIN 27
-#define OUTPUT_VALUE 3800
-#define READ_DELAY 9000 //microseconds
 
-uint16_t buffer[512] = {0};
+arduinoFFT FFT = arduinoFFT();
+
+double fftResult[SAMPLES] = {0};
+
+uint16_t buffer[SAMPLES] = {0};
+double vReal[SAMPLES] = {0};
 
 void i2sInit()
 {
@@ -56,15 +65,20 @@ void reader(void *pvParameters) {
     size_t bytes_read;
 
     while (true) {
+        double vImag[SAMPLES] = {0};
         i2s_read(I2S_NUM_0, &buffer, sizeof(buffer), &bytes_read, 15);
 
-        Serial.print("New get: ");
-        Serial.println(sizeof(buffer));
-        Serial.println(bytes_read);
+        for (int i=0; i < SAMPLES; i++) {
+            vReal[i] = (double)(buffer[i]&0x0FFF)/4095;
+        }
 
-        Serial.println(buffer[0]&0x0FFF);
-        Serial.println(buffer[1]&0x0FFF);
-        Serial.println(buffer[2]&0x0FFF);
+        FFT.Windowing(vReal, SAMPLES, FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+        FFT.Compute(vReal, vImag, SAMPLES, FFT_FORWARD);
+        FFT.ComplexToMagnitude(vReal, vImag, SAMPLES);
+
+        for (int i=0; i < SAMPLES; i++) {
+            fftResult[i] = vReal[i];
+        }
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -84,10 +98,11 @@ void setup() {
     // Initialize the I2S peripheral
     i2sInit();
     // Create a task that will read the data
-    xTaskCreatePinnedToCore(reader, "ADC_reader", 2048, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(reader, "ADC_reader", 16384, NULL, 1, NULL, 1);
 
-    webserverSetup(buffer);
+    webserverSetup(vReal);
 }
 
 void loop() {
+    vTaskDelete(NULL);
 }

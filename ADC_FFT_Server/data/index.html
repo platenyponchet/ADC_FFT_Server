@@ -26,11 +26,14 @@
             console.log(incoming_data);
 
             const labels = [...Array(response.length).keys()];
+            for (var i=0; i < labels.length; i++) {
+                labels[i] = labels[i]*44000/512;
+            }
 
             const data = {
                 labels: labels,
                 datasets: [{
-                    label: 'ADC Samples (I2S)',
+                    label: 'Internal PWM FFT Result',
                     backgroundColor: 'rgb(255, 99, 132)',
                     borderColor: 'rgb(255, 99, 132)',
                     data: response,
@@ -41,15 +44,15 @@
                 type: 'line',
                 data: data,
                 options: {
-                    scales: {
-                        y: {
-                            max: 4095,
-                            min: 0,
-                            ticks: {
-                                stepSize: 0.5
-                            }
-                        }
-                    },
+                    // scales: {
+                    //     y: {
+                    //         max: 4095,
+                    //         min: 0,
+                    //         ticks: {
+                    //             stepSize: 0.5
+                    //         }
+                    //     }
+                    // },
                     animation: {
                         duration: 0
                     }
